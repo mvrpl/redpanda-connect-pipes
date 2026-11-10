@@ -1,0 +1,41 @@
+input:
+  generate:
+    interval: 10s
+    count: 0
+    mapping: 'root = {}'
+
+pipeline:
+  processors:
+    - command:
+          name: 'C:\Users\mvrpl\scoop\apps\python\current\python.exe'
+          args_mapping: '[ "py_rand_data.py" ]'
+    - unarchive:
+        format: json_array
+
+# output:
+#   stdout:
+#     codec: lines
+
+output:
+  sql_insert:
+    driver: postgres
+    dsn: ${POSTGRES_DSN}
+    table: pessoas
+    columns: [ id, nome, estado, celular, ip ]
+    args_mapping: 'root = [ this.id.number(), this.nome, this.estado, this.celular, this.ip ]'
+    init_statement: |
+      CREATE TABLE IF NOT EXISTS pessoas (
+        id         BIGINT PRIMARY KEY,
+        nome       TEXT,
+        estado     TEXT,
+        celular    TEXT,
+        ip         TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('America/Sao_Paulo', now())
+      );
+    suffix: |
+      ON CONFLICT (id) DO UPDATE SET
+        nome       = EXCLUDED.nome,
+        estado     = EXCLUDED.estado,
+        celular    = EXCLUDED.celular,
+        ip         = EXCLUDED.ip,
+        updated_at = timezone('America/Sao_Paulo', now())

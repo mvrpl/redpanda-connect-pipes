@@ -1,0 +1,31 @@
+input:
+  generate:
+    interval: 15s
+    mapping: root = {}
+
+pipeline:
+  processors:
+    - branch:
+        request_map: 'root = ""'
+        processors:
+          - http:
+              url: https://rest.coincap.io/v3/assets/xrp?apiKey=${COINCAP_KEY}
+              verb: GET
+              headers:
+                Content-Type: application/json
+        result_map: |
+          root.symbol = this.data.symbol
+          root.price = this.data.priceUsd
+          root.change24hr = this.data.changePercent24Hr
+          root.volume24hr = this.data.volumeUsd24Hr
+          root.supply = this.data.supply
+          root.market_cap = this.data.marketCapUsd
+          root.timestamp = this.timestamp
+
+output:
+  kafka_franz:
+    seed_brokers:
+        - 127.0.0.1:9092
+        - 127.0.0.1:10092
+        - 127.0.0.1:11092
+    topic: crypto_prices

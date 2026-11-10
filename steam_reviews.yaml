@@ -1,0 +1,50 @@
+input:
+  generate:
+    interval: 1m
+    count: 0
+    mapping: 'root = {}'
+
+pipeline:
+  processors:
+    - http:
+        url: https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1?appId=227300
+        verb: GET
+        headers:
+          Accept: application/json
+    - mapping: 'root = this.response.reviews'
+    - unarchive:
+        format: json_array
+    - branch:
+        processors:
+          - cache:
+              resource: reviews_checkpoint
+              operator: get
+              key: ${! json("recommendationid") }
+        result_map: 'meta seen = "true"'
+    - catch: []
+    - mapping: |
+        root = if metadata("seen") == "true" { deleted() }
+
+cache_resources:
+  - label: reviews_checkpoint
+    file:
+      directory: 'C:\Users\mvrpl\OneDrive\redpanda_tests\reviews_checkpoint'
+
+output:
+  broker:
+    pattern: fan_out_sequential
+    outputs:
+      - kafka_franz:
+          seed_brokers: [ "${KAFKA_BROKER}" ]
+          topic: steam_reviews
+          key: ${! json("recommendationid") }
+          tls:
+            enabled: true
+            root_cas_file: 'C:\\Users\mvrpl\OneDrive\aiven_ca_kafka.pem'
+          sasl:
+            - mechanism: SCRAM-SHA-256
+              username: ${KAFKA_USER}
+              password: ${KAFKA_PASS}
+      - cache:
+          target: reviews_checkpoint
+          key: ${! json("recommendationid") }

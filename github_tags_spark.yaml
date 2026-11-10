@@ -1,0 +1,50 @@
+input:
+  generate:
+    interval: 1m
+    count: 0
+    mapping: 'root = {}'
+
+pipeline:
+  processors:
+    - http:
+        url: https://api.github.com/repos/apache/spark/tags?per_page=100
+        verb: GET
+        headers:
+          Accept: application/vnd.github+json
+          Authorization: Bearer ${GITHUB_TKN}
+    - unarchive:
+        format: json_array
+    - branch:
+        processors:
+          - cache:
+              resource: tags_checkpoint
+              operator: get
+              key: ${! json("name") }
+        result_map: 'meta seen = "true"'
+    - catch: []
+    - mapping: |
+        root = if metadata("seen") == "true" { deleted() }
+
+cache_resources:
+  - label: tags_checkpoint
+    file:
+      directory: 'C:\Users\mvrpl\OneDrive\redpanda_tests\tags_checkpoint'
+
+output:
+  broker:
+    pattern: fan_out_sequential
+    outputs:
+      - kafka_franz:
+          seed_brokers: [ "${KAFKA_BROKER}" ]
+          topic: ghub_spark_tags
+          key: ${! json("name") }
+          tls:
+            enabled: true
+            root_cas_file: 'C:\\Users\mvrpl\OneDrive\aiven_ca_kafka.pem'
+          sasl:
+            - mechanism: SCRAM-SHA-256
+              username: ${KAFKA_USER}
+              password: ${KAFKA_PASS}
+      - cache:
+          target: tags_checkpoint
+          key: ${! json("name") }

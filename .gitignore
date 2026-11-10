@@ -1,3 +1,5 @@
 tags_checkpoint/*
+!tags_checkpoint/.gitkeep
 reviews_checkpoint/*
+!reviews_checkpoint/.gitkeep
 .env.keys
