@@ -1,0 +1,51 @@
+input:
+  label: pg_cdc
+  # postgres_cdc: PRECISA DE LICENÇA ENTERPRISE
+  # postgres_cdc:
+  #   dsn: ${POSTGRES_DSN}
+  #   schema: public
+  #   tables:
+  #     - pessoas
+  #   slot_name: rpcn_stdout_slot
+  #   stream_snapshot: true
+  #   snapshot_batch_size: 1000
+  #   include_transaction_markers: false
+  subprocess:
+    name: 'C:\Users\mvrpl\scoop\apps\python\current\python.exe'
+    args:
+      - postgres_cdc.py
+      - --tables
+      - pessoas
+      - --snapshot
+    restart_on_exit: true
+    max_buffer: 1048576
+
+pipeline:
+  processors:
+    - mapping: |
+        root.operation = this.operation
+        root.table = this.table
+        root.data = this.data
+
+    - try:
+        - switch:
+            - check: this.operation == "truncate"
+              processors:
+                - mapping: root = deleted()
+
+        - mutation: |
+            meta redis_command = if this.operation == "delete" { "del" } else { "json.set" }
+
+        - redis:
+            url: ${REDIS_CLOUD}
+            command: ${! @redis_command }
+            args_mapping: |
+              let key = this.table + ":" + this.data.id.not_null().string()
+              let doc = if this.data.type() == "string" { this.data } else { this.data.string() }
+              root = if this.operation == "delete" { [ $key ] } else { [ $key, "$",  $doc ] }
+            tls:
+              enabled: false
+        - mapping: root = deleted()
+
+output:
+  reject: 'falha ao gravar no Redis: ${! error() }'
