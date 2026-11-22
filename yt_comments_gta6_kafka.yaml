@@ -36,7 +36,7 @@ pipeline:
           - cache:
               resource: checkpoint
               operator: get
-              key: '${! json("comentario_id") }'
+              key: ${! json("comentario_id") }
         result_map: meta ja_processado = "true"
     - catch:
         - noop: {}
@@ -50,7 +50,7 @@ output:
       - kafka_franz:
           seed_brokers: [ "${KAFKA_BROKER}" ]
           topic: youtube_comments
-          key: '${! json("comentario_id") }'
+          key: ${! json("comentario_id") }
           tls:
             enabled: true
             root_cas_file: 'C:\\Users\mvrpl\OneDrive\aiven_ca_kafka.pem'
@@ -60,7 +60,7 @@ output:
               password: "${KAFKA_PASS}"
       - cache:
           target: checkpoint
-          key: '${! json("comentario_id") }'
+          key: ${! json("comentario_id") }
 
 cache_resources:
   - label: checkpoint
