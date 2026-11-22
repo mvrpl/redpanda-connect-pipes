@@ -127,6 +127,7 @@ def buscar_comentarios(api_key, video_id, max_comentarios):
                     "texto": s.get("textDisplay"),
                     "curtidas": s.get("likeCount", 0),
                     "publicado_em": s.get("publishedAt"),
+                    "comentario_id": item["id"],
                 }
             )
 
