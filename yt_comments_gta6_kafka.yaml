@@ -1,0 +1,68 @@
+input:
+  generate:
+    interval: 20m
+    count: 0
+    mapping: root = {}
+
+pipeline:
+  processors:
+    - command:
+        name: python
+        args_mapping: |
+          [
+            "-X", "utf8",
+            "yt_comments.py", "#gta6", "pt",
+            "--horas", "96", "--videos", "50", "--comentarios", "50",
+            "--pais", "BR"
+          ]
+    - catch:
+        - log:
+            level: ERROR
+            message: 'Falha ao executar youtube_comentarios.py: ${! error() }'
+        - mapping: root = deleted()
+    - mapping: |
+        root = if content().length() == 0 { deleted() }
+    - unarchive:
+        format: lines
+    - mapping: |
+        root = if content().string().trim() == "" {
+          deleted()
+        } else {
+          content().string().parse_json()
+        }
+    - branch:
+        request_map: root = this
+        processors:
+          - cache:
+              resource: checkpoint
+              operator: get
+              key: '${! json("comentario_id") }'
+        result_map: meta ja_processado = "true"
+    - catch:
+        - noop: {}
+    - mapping: |
+        root = if metadata("ja_processado") == "true" { deleted() }
+
+output:
+  broker:
+    pattern: fan_out_sequential_fail_fast
+    outputs:
+      - kafka_franz:
+          seed_brokers: [ "${KAFKA_BROKER}" ]
+          topic: youtube_comments
+          key: '${! json("comentario_id") }'
+          tls:
+            enabled: true
+            root_cas_file: 'C:\\Users\mvrpl\OneDrive\aiven_ca_kafka.pem'
+          sasl:
+            - mechanism: SCRAM-SHA-256
+              username: ${KAFKA_USER}
+              password: "${KAFKA_PASS}"
+      - cache:
+          target: checkpoint
+          key: '${! json("comentario_id") }'
+
+cache_resources:
+  - label: checkpoint
+    file:
+      directory: ./yt_comments
